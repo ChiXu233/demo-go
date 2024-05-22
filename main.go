@@ -28,6 +28,7 @@ func main() {
 		&model.UserRole{},
 		&model.Token{},
 		&model.OperationLog{},
+		&model.Dict{},
 	)
 	if err != nil {
 		panic(err)
@@ -62,6 +63,8 @@ func main() {
 
 		//字典表
 		v1.POST("/dict", controller.CreateOrUpdateDictController) //创建Or更新字典表
+		v1.GET("/dict_list", controller.QueryDictListController)  //查看字典表列表
+		v1.GET("/dict/:dict_id", controller.QueryDictController)  //查看字典表详情
 	}
 
 	// 捕捉不允许的方法

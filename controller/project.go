@@ -266,11 +266,19 @@ func QueryProjectInfoController(c *gin.Context) {
 	//先查找所有已关联项目
 	var projects []Project
 	var UnusedProject []Project
-	var standardGroupList []StandardGroup
+	var DBList []map[string]interface{}
 	Rename := make(map[string]bool)
 	selector := make(map[string]interface{})
+	selectMap := map[string][]string{
+		"standard_group": {"id", "project_id", "scan_type"},
+		"parse":          {"id", "project_id"},
+		"match_rule":     {"id", "project_id"},
+		"dict":           {"id", "project_id", "scan_type"},
+		"trains":         {"id", "project_id"},
+	}
 	query := c.Query("query")
-	//Table := c.Query("table")
+	application := c.Query("application")
+
 	if query == "" {
 		//query为空则为检索所有可关联项目
 		err := QueryList(&selector, &projects)
@@ -278,32 +286,39 @@ func QueryProjectInfoController(c *gin.Context) {
 			SendServerErrorResponse(c, "查询项目失败", err)
 			return
 		}
-		err = QueryList(&selector, &standardGroupList)
+		err = DB.Table(application).Select(selectMap[application]).Where("deleted_at is null").Scan(&DBList).Debug().Error
+		//err = QueryList(&selector, &standardGroupList)
 		if err != nil {
-			SendServerErrorResponse(c, "查询标准图组失败", err)
+			SendServerErrorResponse(c, "查询列表失败", err)
 			return
 		}
-		for k := range projects {
+		for k := 0; k < len(projects); k++ {
 			//列出所有项目
+			insert := true
 			TypeStrArr := strings.Split(projects[k].ScanType, "、")
-			for _, v := range standardGroupList {
+			for _, v := range DBList {
 				//对已经关联完毕的数据进行匹配
-				if v.ProjectID == projects[k].ID {
+				if uint(v["project_id"].(int64)) == projects[k].ID {
+					//若为match_rule不需要对scanType进行筛选
+					if v["scan_type"] == "" {
+						insert = false
+						continue
+					}
 					//对已经关联的去除
 					for i := 0; i < len(TypeStrArr); i++ {
-						if TypeStrArr[i] == v.ScanType {
+						if TypeStrArr[i] == v["scan_type"] {
 							TypeStrArr = append(TypeStrArr[:i], TypeStrArr[i+1:]...)
 						}
 					}
 					//防止数组只有一个元素从而去除失败
-					if len(TypeStrArr) == 1 && TypeStrArr[0] == v.ScanType {
+					if len(TypeStrArr) == 1 && TypeStrArr[0] == v["scan_type"] {
 						TypeStrArr = []string{}
 					}
 				}
 			}
 
 			projects[k].ScanType = strings.Join(TypeStrArr, "、")
-			if projects[k].ScanType != "" {
+			if projects[k].ScanType != "" && insert {
 				//对companyName进行去重操作
 				if _, ok := Rename[projects[k].CompanyName]; !ok {
 					UnusedProject = append(UnusedProject, projects[k])
@@ -319,9 +334,10 @@ func QueryProjectInfoController(c *gin.Context) {
 			SendServerErrorResponse(c, "关联项目只有三级", nil)
 			return
 		}
-		err := QueryList(&selector, &standardGroupList)
+		err := DB.Table(application).Select(selectMap[application]).Where("deleted_at is null").Scan(&DBList).Debug().Error
+		//err = QueryList(&selector, &standardGroupList)
 		if err != nil {
-			SendServerErrorResponse(c, "查询标准图组失败", err)
+			SendServerErrorResponse(c, "查询列表失败", err)
 			return
 		}
 		for index, filter := range queryList {
@@ -340,24 +356,29 @@ func QueryProjectInfoController(c *gin.Context) {
 			return
 		}
 		for i := 0; i < len(projects); i++ {
+			insert := true
 			TypeStrArr := strings.Split(projects[i].ScanType, "、")
-			for _, v := range standardGroupList {
+			for _, v := range DBList {
 				//对已经关联完毕的数据进行匹配
-				if v.ProjectID == projects[i].ID {
+				if uint(v["project_id"].(int64)) == projects[i].ID {
+					if v["scan_type"] == "" {
+						insert = false
+						continue
+					}
 					//对已经关联的去除
 					for i := 0; i < len(TypeStrArr); i++ {
-						if TypeStrArr[i] == v.ScanType {
+						if TypeStrArr[i] == v["scan_type"] {
 							TypeStrArr = append(TypeStrArr[:i], TypeStrArr[i+1:]...)
 						}
 					}
 					//防止数组只有一个元素从而去除失败
-					if len(TypeStrArr) == 1 && TypeStrArr[0] == v.ScanType {
+					if len(TypeStrArr) == 1 && TypeStrArr[0] == v["scan_type"] {
 						TypeStrArr = []string{}
 					}
 				}
 			}
 			projects[i].ScanType = strings.Join(TypeStrArr, "、")
-			if projects[i].ScanType != "" {
+			if projects[i].ScanType != "" && insert {
 				UnusedProject = append(UnusedProject, projects[i])
 			}
 		}

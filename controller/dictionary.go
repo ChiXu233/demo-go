@@ -5,6 +5,7 @@ import (
 	. "demo-go/utils"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"strconv"
 )
 
 // CreateOrUpdateDictController 创建or更新字典表
@@ -164,4 +165,80 @@ func CreateOrUpdateDictController(c *gin.Context) {
 		SendNormalResponse(c, dict)
 		return
 	}
+}
+
+// QueryDictListController 查看字典表列表
+func QueryDictListController(c *gin.Context) {
+	var dictList []Dict
+	selector := make(map[string]interface{})
+	selector["order"] = "ID desc"
+
+	dictName := c.Query("dict_name")
+	if dictName != "" {
+		selector["dict_name"] = dictName
+	}
+	projectIdStr := c.Query("project_id")
+	if projectIdStr != "" {
+		projectId, err := strconv.ParseInt(projectIdStr, 10, 64)
+		if projectId == 0 {
+			SendServerErrorResponse(c, "读取projectID失败", err)
+			return
+		}
+		selector["project_id"] = uint(projectId)
+	}
+	err := QueryList(&selector, &dictList)
+	if err != nil {
+		SendServerErrorResponse(c, "查询字典列表失败", err)
+		return
+	}
+	SendNormalResponse(c, dictList)
+}
+
+// QueryDictController 查看字典表详情
+func QueryDictController(c *gin.Context) {
+	dictID, _ := strconv.Atoi(c.Query("dict_id"))
+	categoryName := c.Query("category_name")
+	codeName := c.Query("code_name")
+	codeSource := c.QueryArray("code_source")
+	var items []DictItem
+	selector := make(map[string]interface{})
+	selector["dict_id"] = uint(dictID)
+	selector["order"] = "category_name,code"
+
+	if categoryName != "" {
+		selector["category_name"] = categoryName
+	}
+	if codeName != "" {
+		selector["code_name"] = codeName
+	}
+	if len(codeSource) == 1 && codeSource[0] != "" {
+		codeSourceInt, _ := strconv.Atoi(codeSource[0])
+		if !(codeSourceInt == 1 || codeSourceInt == 2) {
+			SendServerErrorResponse(c, "codeSource只能为1或2", nil)
+			return
+		}
+		selector["code_source"] = codeSourceInt
+	}
+	err := QueryList(&selector, &items)
+	if err != nil {
+		SendServerErrorResponse(c, "查询dict失败", err)
+		return
+	}
+	var returnList []DictItemList
+	order := 1
+	for _, item := range items {
+		var returnDictItem DictItemList
+		returnDictItem.BaseModel = item.BaseModel
+		returnDictItem.BaseItem = item.BaseItem
+		returnDictItem.Order = uint(order)
+		returnDictItem.CodeSource = CodeSourceMap[item.CodeSource]
+
+		order += 1
+		returnList = append(returnList, returnDictItem)
+	}
+	if len(returnList) == 0 {
+		returnList = []DictItemList{}
+	}
+	SendNormalResponse(c, returnList)
+
 }
