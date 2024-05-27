@@ -11,4 +11,19 @@ db:
   password:     123456
   port:         5432
 
-#redis:
+redis:
+  host:         127.0.0.1
+  port:         6379
+  lock_key: time_lock
+  key_postfix: _68
+  match_progress_key: match_progress
+  group_progress_key: group_progress
+  retrieval_key: source_data_retrieval
+  source_data_task_queue_key: source_data_task_queueue
+  source_data_task_progress_key: source_data_task_progress
+  ad_training_task_queue_key: ad_training_task_queue
+  ad_training_task_progress_key: ad_training_task_progress
+  ad_test_task_queue_key: ad_test_task_queue
+  ad_test_task_progress_key: ad_test_task_progress
+  ad_pre_process_status_key: ad_pre_process_status
+  standard_gen_progress_key: standard_gen_progress

@@ -20,6 +20,22 @@ type Config struct {
 		Password string `yaml:"password"`
 		Port     uint   `yaml:"port"`
 	}
+	Redis struct {
+		Host                      string
+		Port                      int
+		Lock                      string `yaml:"lock_key"`
+		KeyPostfix                string `yaml:"key_postfix"`
+		MatchProgressKey          string `yaml:"match_progress_key"`
+		GroupProgressKey          string `yaml:"group_progress_key"`
+		SourceDataTaskQueueKey    string `yaml:"source_data_task_queue_key"`
+		SourceDataTaskProgressKey string `yaml:"source_data_task_progress_key"`
+		ADTrainingTaskQueueKey    string `yaml:"ad_training_task_queue_key"`
+		ADTrainingTaskProgressKey string `yaml:"ad_training_task_progress_key"`
+		ADTestTaskQueueKey        string `yaml:"ad_test_task_queue_key"`
+		ADTestTaskProgressKey     string `yaml:"ad_test_task_progress_key"`
+		ADPreProcessStatusKey     string `yaml:"ad_pre_process_status_key"`
+		StandardGenProgressKey    string `yaml:"standard_gen_progress_key"`
+	}
 }
 
 var Conf = Config{}
