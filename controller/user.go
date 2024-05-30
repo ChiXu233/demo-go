@@ -3,6 +3,7 @@ package controller
 import (
 	. "demo-go/model"
 	. "demo-go/utils"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 	"math/rand"
@@ -20,6 +21,7 @@ func CreateOrUpdateUserController(c *gin.Context) {
 	var requestBody User
 	var err error
 	err = c.BindJSON(&requestBody)
+	fmt.Println(requestBody, "接受到到user")
 	if err != nil {
 		SendParameterResponse(c, "读取请求参数错误", err)
 		return
@@ -55,13 +57,15 @@ func CreateOrUpdateUserController(c *gin.Context) {
 			SendServerErrorResponse(c, "创建用户失败", err)
 			return
 		}
-		if err := Log(c, "创建用户", "用户管理", "创建用户: "+strconv.Itoa(int(requestBody.ID)), 2, transaction); err != nil {
-			transaction.Rollback()
-			SendServerErrorResponse(c, "记录日志失败", err)
-			return
-		}
+		//if err := Log(c, "创建用户", "用户管理", "创建用户: "+strconv.Itoa(int(requestBody.ID)), 2, transaction); err != nil {
+		//	transaction.Rollback()
+		//	fmt.Println("return this")
+		//	SendServerErrorResponse(c, "记录日志失败", err)
+		//	return
+		//}
 		transaction.Commit()
 		SendNormalResponse(c, requestBody)
+		return
 	} else {
 		var userDB User
 		//验证用户

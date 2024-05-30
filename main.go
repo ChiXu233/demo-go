@@ -69,6 +69,9 @@ func main() {
 		//预处理
 		v1.GET("/preprocess", controller.QueryPreprocessListController)       //查询预处理列表
 		v1.POST("/preprocess", controller.CreateOrUpdatePreprocessController) //新增或更新预处理规则
+
+		//导入本地标准图(创建标准图组+读取标准图列表+修改standard_info、standard_item)
+		v1.POST("importLocalStandard/", controller.ImportLocalStandardController) //导入本地标准图
 	}
 
 	// 捕捉不允许的方法

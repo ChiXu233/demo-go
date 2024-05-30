@@ -85,12 +85,12 @@ func CreateOrUpdateProjectController(c *gin.Context) {
 			SendServerErrorResponse(c, "创建项目-写入数据库失败", err)
 			return
 		}
-		err = Log(c, "创建项目", "标准化管理", "创建项目: "+project.Info(), 2, transaction)
-		if err != nil {
-			transaction.Rollback()
-			SendServerErrorResponse(c, "写入日志失败", err)
-			return
-		}
+		//err = Log(c, "创建项目", "标准化管理", "创建项目: "+project.Info(), 2, transaction)
+		//if err != nil {
+		//	transaction.Rollback()
+		//	SendServerErrorResponse(c, "写入日志失败", err)
+		//	return
+		//}
 		transaction.Commit()
 		scanTypeConvert(&project.ScanType)
 		SendNormalResponse(c, project)
