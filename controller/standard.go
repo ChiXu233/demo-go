@@ -25,6 +25,8 @@ func ImportLocalStandardController(c *gin.Context) {
 	//读取输入路径
 	//"/Users/dg2023/Desktop/BASE/"
 	Filepath := c.Query("filepath")
+	//"files/source_data/宁波五号线"
+	flactpath := c.Query("flactpath")
 	//判断路径是否正确
 	err = GetFiles(Filepath, true, &files)
 	if err != nil {
@@ -102,7 +104,7 @@ func ImportLocalStandardController(c *gin.Context) {
 
 	//	读目录下图片列表，建(standard_info)
 
-	standardInfos, err = GetPicFilesAndInsert(standardGroup, &files)
+	standardInfos, err = GetPicFilesAndInsert(flactpath, standardGroup, &files)
 	if err != nil {
 		transaction.Rollback()
 		SendServerErrorResponse(c, "读取文件失败", err)
@@ -125,10 +127,9 @@ func ImportLocalStandardController(c *gin.Context) {
 	SendNormalResponse(c, standardGroup)
 }
 
-func GetPicFilesAndInsert(group StandardGroup, files *[]string) (info []StandardInfo, err error) {
+func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string) (info []StandardInfo, err error) {
 	var filesFiltered []string
 	var standardInfoList []StandardInfo
-	basePath := ""
 	cameraStr := ""
 	index := 0
 	for _, filePath := range *files {
@@ -157,20 +158,17 @@ func GetPicFilesAndInsert(group StandardGroup, files *[]string) (info []Standard
 
 	for _, v := range filesFiltered {
 		index += 1
-		basePath = "files/source_data/宁波五号线"
 		camera := path.Base(path.Dir(v))
 		if cameraStr != camera {
 			//切换相机index也发生改变
 			index = 1
 		}
 		cameraStr = camera
-		outFilePath := fmt.Sprintf("%s/%s/%s", basePath, camera, path.Base(v))
+		outFilePath := fmt.Sprintf("%s/%s/%s", flactpath, camera, path.Base(v))
 		standardInfo := StandardInfo{
 			ProjectID: group.ProjectID,
 			InfoModel: InfoModel{
-				ImageID: camera + "-" + strings.Split(path.Base(v), ".")[0],
-				//http://192.168.2.67:9000/files/source_data/宁波五号线/BL/001.jpg
-				//http://127.0.0.1:9093/files/source_data/宁波五号线/BL_001.jpg
+				ImageID:          camera + "-" + strings.Split(path.Base(v), ".")[0],
 				ImageURL:         fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, outFilePath),
 				ImageURLCompress: fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, outFilePath),
 			},
