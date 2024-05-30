@@ -16,6 +16,129 @@ import (
 	"time"
 )
 
+func CreateOrUpdateStandardGroupController(c *gin.Context) {
+	var err error
+	var frontStandardGroupStructure FrontStandardGroupStructure
+	var standardGroup StandardGroup
+	var project Project
+	var standardCount int64
+	err = c.BindJSON(&frontStandardGroupStructure)
+	if err != nil {
+		SendParameterResponse(c, "解析json数据失败", err)
+		return
+	}
+	scanTypeConvert(&frontStandardGroupStructure.ScanType)
+	standardGroup.ScanType = frontStandardGroupStructure.ScanType
+	standardGroup.Name = frontStandardGroupStructure.Name
+	standardGroup.Comment = frontStandardGroupStructure.Comment
+	standardGroup.ProjectID = frontStandardGroupStructure.ProjectID
+	standardGroup.PreprocessID = frontStandardGroupStructure.PreProcessID
+
+	//查询是否重复
+	if standardGroup.Name == "" {
+		SendParameterResponse(c, "标准图组名称不能为空", nil)
+		return
+	}
+	selector := make(map[string]interface{})
+	selector["project_id"] = standardGroup.ProjectID
+	if frontStandardGroupStructure.ScanType != "" {
+		selector["scan_type"] = frontStandardGroupStructure.ScanType
+	}
+	var standardGroupList []StandardGroup
+	if err = QueryList(&selector, &standardGroup); err != nil {
+		SendServerErrorResponse(c, "查找项目失败", err)
+		return
+	}
+	if len(standardGroupList) > 0 {
+		SendParameterResponse(c, "此项目已经创建标准图组", err)
+		return
+	}
+
+	//查询项目
+	err = QueryEntity(standardGroup.ProjectID, &project)
+	if err != nil {
+		SendServerErrorResponse(c, "查找项目失败", err)
+		return
+	}
+	standardGroup.ProjectInfo = project.Info()
+
+	//查找标准图数量
+	if err = DB.Model(&StandardInfo{}).Where("project_id = ?", project.ID).Count(&standardCount).Error; err != nil {
+		SendServerErrorResponse(c, "查询标准图数量失败", err)
+		return
+	}
+	number := int(standardCount)
+	uploadStatus := "done"
+	uploadProgress := 100
+	if standardGroup.ScanType == "360" {
+		//创建标准图组
+		standardGroup.ScanType = "360"
+		standardGroup.Numbers = 0
+		standardGroup.UpdatedTime = time.Now()
+		standardGroup.ProjectID = project.ID
+		standardGroup.UploadStatus = uploadStatus
+		standardGroup.UploadProgress = uploadProgress
+		err = CreateEntity(DB, &standardGroup)
+		if err != nil {
+			SendServerErrorResponse(c, "创建标准图组失败", err)
+			return
+		}
+		operationLog := fmt.Sprintf("项目：%s (%d) 创建标准图组：%s (%d)", project.Info(), project.ID, standardGroup.Name, standardGroup.ID)
+		err = Log(c, "创建标准图组", "标准图管理", operationLog, 2)
+		if err != nil {
+			SendServerErrorResponse(c, "", err)
+			return
+		}
+		SendNormalResponse(c, "")
+		return
+
+	} else if standardGroup.ScanType == "快扫" || standardGroup.ScanType == "rapid" {
+		//uploadStatus = "doing"
+		//uploadProgress = 0
+		//standardDir := frontStandardGroupStructure.StandardRapidDir
+		//SendParameterResponse(c, "快扫标准图录入暂不支持", nil)
+		//return
+		if number == 0 {
+			SendParameterResponse(c, "所选路径不包含图片", err)
+			return
+		}
+
+		//创建标准图组
+		standardGroup.Numbers = number
+		standardGroup.UpdatedTime = time.Now()
+		standardGroup.ProjectID = project.ID
+		standardGroup.UploadStatus = uploadStatus
+		standardGroup.UploadProgress = uploadProgress
+		err = CreateEntity(DB, &standardGroup)
+		if err != nil {
+			SendServerErrorResponse(c, "保存标准图信息失败", err)
+			return
+		}
+	} else if standardGroup.ScanType == "accurate" || standardGroup.ScanType == "精扫" {
+		//创建标准图组
+		standardGroup.Numbers = number
+		standardGroup.UpdatedTime = time.Now()
+		standardGroup.ProjectID = project.ID
+		standardGroup.UploadStatus = uploadStatus
+		standardGroup.UploadProgress = uploadProgress
+		//standardGroup.ParseID = parse.ID
+		err = CreateEntity(DB, &standardGroup)
+		if err != nil {
+			SendServerErrorResponse(c, "保存标准图组信息失败", err)
+			return
+		}
+		operationLog := fmt.Sprintf("项目: %s (%d) 创建了标准图组: %s (%d)", project.Info(), project.ID, standardGroup.Name, standardGroup.ID)
+		err = Log(c, "创建标准图组", "标准图管理", operationLog, 2)
+		if err != nil {
+			SendServerErrorResponse(c, "", err)
+			return
+		}
+	}
+	SendNormalResponse(c, "")
+	return
+
+}
+
 func ImportLocalStandardController(c *gin.Context) {
 
 	var err error
@@ -27,6 +150,10 @@ func ImportLocalStandardController(c *gin.Context) {
 	Filepath := c.Query("filepath")
 	//"files/source_data/宁波五号线"
 	flactpath := c.Query("flactpath")
+	if flactpath == "" {
+		SendParameterResponse(c, "文件映射路径为空", nil)
+		return
+	}
 	//判断路径是否正确
 	err = GetFiles(Filepath, true, &files)
 	if err != nil {
