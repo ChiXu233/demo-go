@@ -487,10 +487,11 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 				if contain(RoiArry, xshapes.Points) {
 					component = xlable[4:]
 					RoiXArry := handelPoint(xshapes.Points)
-
+					RoiArry = RoiXArry
 					for Llable, Lshapes := range LJshapes {
 						if contain(RoiXArry, Lshapes.Points) {
 							det_type = Llable
+							RoiArry = handelPoint(Lshapes.Points)
 						}
 
 					}
