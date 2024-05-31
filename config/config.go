@@ -36,6 +36,18 @@ type Config struct {
 		ADPreProcessStatusKey     string `yaml:"ad_pre_process_status_key"`
 		StandardGenProgressKey    string `yaml:"standard_gen_progress_key"`
 	}
+	Algorithm struct {
+		IP                 string `yaml:"ip"`
+		Port               int    `yaml:"port"`
+		One                bool
+		ADTrainDockerAPI   string `yaml:"ad_train_docker_api"`
+		ADTrainDockerImage string `yaml:"ad_train_docker_image"`
+		ADTrainGPU         string `yaml:"ad_train_gpu"`
+		ADTrainDebug       bool   `yaml:"ad_train_debug"`
+		ADTrainImageLimit  int    `yaml:"ad_train_image_limit"`
+		ADTestImageLimit   int    `yaml:"ad_test_image_limit"`
+		ADTestAPI          string `yaml:"ad_test_api"`
+	}
 }
 
 var Conf = Config{}
@@ -67,5 +79,20 @@ func (c *Config) loadConfFromEnv() {
 	}
 	if dbPassword, ok := os.LookupEnv("DB_Password"); ok {
 		c.DB.Host = dbPassword
+	}
+	if algIp, ok := os.LookupEnv("ALG_IP"); ok {
+		c.Algorithm.IP = algIp
+	}
+	if algPortStr, ok := os.LookupEnv("ALG_PORT"); ok {
+		if algPort, err := strconv.Atoi(algPortStr); err == nil {
+			c.Algorithm.Port = algPort
+		}
+	}
+	if algAdTrainApi, ok := os.LookupEnv("ALG_AD_TRAIN_API"); ok {
+		c.Algorithm.ADTrainDockerAPI = algAdTrainApi
+	}
+
+	if algAdTestAPI, ok := os.LookupEnv("ALG_AD_TEST_API"); ok {
+		c.Algorithm.ADTestAPI = algAdTestAPI
 	}
 }

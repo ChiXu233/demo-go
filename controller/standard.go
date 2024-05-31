@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/wonderivan/logger"
 	"gorm.io/gorm"
 	"io/ioutil"
 	"path"
@@ -332,8 +333,15 @@ func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string
 			LatestBrightness:    0,
 			RelatedTrainNumber:  "",
 			ImageChangeStatus:   false,
-			ScanType:            "360",
+			ScanType:            "精扫",
 		}
+		//压缩图片
+		compressPath, err := CompressImage(standardInfo.ImageURLCompress, true, 1)
+		if err != nil {
+			logger.Error("压缩数据失败 %v", err)
+			continue
+		}
+		standardInfo.ImageURLCompress = compressPath
 		standardInfoList = append(standardInfoList, standardInfo)
 	}
 	transaction := DB.Begin()
