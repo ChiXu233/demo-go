@@ -298,7 +298,7 @@ func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string
 			InfoModel: InfoModel{
 				ImageID:          camera + "-" + strings.Split(path.Base(v), ".")[0],
 				ImageURL:         fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, outFilePath),
-				ImageURLCompress: fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, outFilePath),
+				ImageURLCompress: "",
 			},
 			InfoModelExtend: InfoModelExtend{
 				DepthURL:        "",
@@ -335,13 +335,13 @@ func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string
 			ImageChangeStatus:   false,
 			ScanType:            "精扫",
 		}
-		//压缩图片
-		compressPath, err := CompressImage(standardInfo.ImageURLCompress, true, 1)
+		//灰度图压缩图
+		compressPath, err := CompressImage(outFilePath, false, 1)
 		if err != nil {
 			logger.Error("压缩数据失败 %v", err)
 			continue
 		}
-		standardInfo.ImageURLCompress = compressPath
+		standardInfo.ImageURLCompress = fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, compressPath)
 		standardInfoList = append(standardInfoList, standardInfo)
 	}
 	transaction := DB.Begin()
