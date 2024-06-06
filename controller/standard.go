@@ -404,8 +404,8 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 	selector["project_id"] = group.ProjectID
 	err = QueryEntityByFilter(&selector, &standardGroup)
 	if err != nil {
-		err = errors.New("查找group_id失败")
-		return
+		err = errors.New("查找group_id失败" + err.Error())
+		return err
 	}
 	for _, v := range filesFiltered {
 		var data LabelMeJson
@@ -430,13 +430,13 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 
 		fileData, err := ioutil.ReadFile(v)
 		if err != nil {
-			err = errors.New("读取json文件失败")
-			return
+			err = errors.New("读取json文件失败" + err.Error())
+			return err
 		}
 		err = json.Unmarshal(fileData, &data)
 		if err != nil {
-			err = errors.New("解码json文件失败")
-			return
+			err = errors.New("解码json文件失败" + err.Error())
+			return err
 		}
 
 		for _, k := range data.Shapes {
@@ -543,7 +543,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 	}
 	err = CreateEntities(transaction, &Items)
 	if err != nil {
-		err = errors.New("新增失败")
+		err = errors.New("新增失败" + err.Error())
 		return err
 	}
 
