@@ -419,13 +419,11 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 		cameraStr = camera
 		imagId := camera + "-" + strings.Split(path.Base(v), ".")[0]
 
-		DBJshapes := make(map[string]Shape)
-		XBJshapes := make(map[string]Shape)
-		LJshapes := make(map[string]Shape)
+		var DBJshapes, XBJshapes, LJshapes, CXshapes, CZshapes, ZXJshapes []Shape
 
 		//获取相同imageID的standard_infoID
 		for _, k := range standardInfos {
-			if k.ImageID == imagId && k.ProjectID == group.ProjectID {
+			if k.ImageID == imagId && k.ProjectID == uint(6475) {
 				standard_infoId = k.ID
 			}
 		}
@@ -433,36 +431,53 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 		fileData, err := ioutil.ReadFile(v)
 		if err != nil {
 			err = errors.New("读取json文件失败")
-			return err
+			return
 		}
 		err = json.Unmarshal(fileData, &data)
 		if err != nil {
 			err = errors.New("解码json文件失败")
-			return err
+			return
 		}
 
 		for _, k := range data.Shapes {
-			//提取大部件小部件零件shapes
-			if strings.Contains(k.Label, "-") {
+			//提取大部件小部件零件、车厢车轴转向架
+			if strings.Contains(k.Label, "-") && !strings.HasSuffix(k.Label, "-centre") {
 				continue
 			}
+			//大部件
 			if strings.Contains(k.Label, "#dbj") {
-				DBJshapes[k.Label] = k
+				DBJshapes = append(DBJshapes, k)
 			}
+			//小部件
 			if strings.Contains(k.Label, "#xbj") {
-				XBJshapes[k.Label] = k
+				XBJshapes = append(XBJshapes, k)
 			}
-			if !strings.Contains(k.Label, "#") && !strings.Contains(k.Label, "-") {
-				LJshapes[k.Label] = k
+			//车厢
+			if strings.Contains(k.Label, "#cx") {
+				CXshapes = append(CXshapes, k)
+			}
+			//车轴
+			if strings.Contains(k.Label, "#cz") {
+				CZshapes = append(CZshapes, k)
+			}
+			//转向架
+			if strings.Contains(k.Label, "#zxj") {
+				ZXJshapes = append(ZXJshapes, k)
+			}
+			//零件
+			if !strings.Contains(k.Label, "#") && !strings.Contains(k.Label, "-") || strings.HasSuffix(k.Label, "-centre") {
+				LJshapes = append(LJshapes, k)
 			}
 		}
-
 		//查找groupID，处理点位，生成standard_item
-		for Llabel, Lshapes := range LJshapes {
+		for _, Lshapes := range LJshapes {
 			var RoiArry []float64
 			area := "1"
 			component := "1"
 			det_type := "1"
+			zxj := "0"
+			cz := "0"
+			cx := "0"
 			//初始化
 			camareIndex += 1
 			standardItem := Item{
@@ -489,18 +504,32 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 			standardItem.Roi = RoiArry
 
 			//判断零件小部件大部件
-			det_type = Llabel
-			for xlable, xshapes := range XBJshapes {
+			det_type = strings.Split(Lshapes.Label, "-")[0]
+			for _, xshapes := range XBJshapes {
 				//小部件包含零件
-				if contain(RoiArry, xshapes.Points) {
-					component = xlable[4:]
-					RoiXArry := handelPoint(xshapes.Points)
-					for dlable, dshapes := range DBJshapes {
-						//大部件包含小部件
-						if contain(RoiXArry, dshapes.Points) {
-							area = dlable[4:]
-						}
-					}
+				if contain(RoiArry, handelPoint(xshapes.Points)) {
+					component = xshapes.Label[4:]
+				}
+			}
+			for _, dshapes := range DBJshapes {
+				//大部件包含零件
+				if contain(RoiArry, handelPoint(dshapes.Points)) {
+					area = dshapes.Label[4:]
+				}
+			}
+			for _, zxjshapes := range ZXJshapes {
+				if contain(RoiArry, handelPoint(zxjshapes.Points)) {
+					zxj = zxjshapes.Label[4:]
+				}
+			}
+			for _, czshapes := range CZshapes {
+				if contain(RoiArry, handelPoint(czshapes.Points)) {
+					cz = czshapes.Label[3:]
+				}
+			}
+			for _, cxshapes := range CXshapes {
+				if contain(RoiArry, handelPoint(cxshapes.Points)) {
+					cx = cxshapes.Label[3:]
 				}
 			}
 			standardItem.Roi = RoiArry
@@ -508,6 +537,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 			standardItem.Area = area
 			standardItem.Component = component
 			standardItem.DetType = det_type
+			standardItem.Position = cx + "-" + cz + "-" + zxj
 			Items = append(Items, standardItem)
 		}
 	}
@@ -523,21 +553,31 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 // 处理点位
 func handelPoint(arr [][]float64) []float64 {
 	//将二维数组拆分为一纬数组
-	var res []float64
+	//左下右上
+	res := make([]float64, 4)
+	//先取最左x坐标
 	if arr[0][0] < arr[1][0] {
-		res = append(res, arr[0]...)
-		res = append(res, arr[1]...)
+		res[0] = arr[0][0]
+		res[2] = arr[1][0]
 	} else {
-		res = append(res, arr[1]...)
-		res = append(res, arr[0]...)
+		res[0] = arr[1][0]
+		res[2] = arr[0][0]
+	}
+	//取出最下y坐标
+	if arr[0][1] < arr[1][1] {
+		res[1] = arr[0][1]
+		res[3] = arr[1][1]
+	} else {
+		res[1] = arr[1][1]
+		res[3] = arr[0][1]
 	}
 	return res
 }
 
 // 判断b是否包含a(a小 b大)
-func contain(a []float64, b [][]float64) bool {
-	if b[0][0] <= a[0] && b[1][0] >= a[2] {
-		if b[0][1] <= a[1] && b[1][1] >= a[3] {
+func contain(a []float64, b []float64) bool {
+	if b[0] <= a[0] && b[2] >= a[2] {
+		if b[1] <= a[1] && b[3] >= a[3] {
 			return true
 		}
 	}
@@ -698,28 +738,28 @@ func GetJsonItesm(c *gin.Context) {
 			det_type = strings.Split(Lshapes.Label, "-")[0]
 			for _, xshapes := range XBJshapes {
 				//小部件包含零件
-				if contain(RoiArry, xshapes.Points) {
+				if contain(RoiArry, handelPoint(xshapes.Points)) {
 					component = xshapes.Label[4:]
 				}
 			}
 			for _, dshapes := range DBJshapes {
 				//大部件包含零件
-				if contain(RoiArry, dshapes.Points) {
+				if contain(RoiArry, handelPoint(dshapes.Points)) {
 					area = dshapes.Label[4:]
 				}
 			}
 			for _, zxjshapes := range ZXJshapes {
-				if contain(RoiArry, zxjshapes.Points) {
+				if contain(RoiArry, handelPoint(zxjshapes.Points)) {
 					zxj = zxjshapes.Label[4:]
 				}
 			}
 			for _, czshapes := range CZshapes {
-				if contain(RoiArry, czshapes.Points) {
+				if contain(RoiArry, handelPoint(czshapes.Points)) {
 					cz = czshapes.Label[3:]
 				}
 			}
 			for _, cxshapes := range CXshapes {
-				if contain(RoiArry, cxshapes.Points) {
+				if contain(RoiArry, handelPoint(cxshapes.Points)) {
 					cx = cxshapes.Label[3:]
 				}
 			}
