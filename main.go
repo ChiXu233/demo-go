@@ -29,6 +29,7 @@ func main() {
 		&model.Token{},
 		&model.OperationLog{},
 		&model.Dict{},
+		&model.Item{},
 	)
 	if err != nil {
 		panic(err)
@@ -73,6 +74,8 @@ func main() {
 		//标准图组
 		v1.POST("/standard", controller.CreateOrUpdateStandardGroupController)    //创建或更新标准图组
 		v1.POST("/importLocalStandard", controller.ImportLocalStandardController) //导入本地标准图
+		v1.POST("/JsonItems", controller.GetJsonItesm)                            //录入json文件
+		v1.POST("/InsertCompress", controller.InsertCompress)                     //传入指定路径生成压缩图
 	}
 
 	// 捕捉不允许的方法

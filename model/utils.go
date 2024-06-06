@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -30,6 +31,7 @@ func CreateEntity(DBExecutor *gorm.DB, entity interface{}) error {
 // CreateEntities batch create db entity use *[]DBModelType
 func CreateEntities(DBExecutor *gorm.DB, entities interface{}) error {
 	DBResult := DBExecutor.Create(entities)
+	fmt.Println(DBResult.RowsAffected)
 	if err := DBResult.Error; err != nil {
 		return err
 	}

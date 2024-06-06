@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -268,6 +269,9 @@ func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string
 		if strings.Contains(fileName, "_compressed") {
 			continue
 		}
+		if strings.Contains(fileName, "_compress") {
+			continue
+		}
 		if strings.Contains(fileName, "concat") {
 			continue
 		}
@@ -336,7 +340,7 @@ func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string
 			ScanType:            "精扫",
 		}
 		//灰度图压缩图
-		compressPath, err := CompressImage(outFilePath, false, 1)
+		compressPath, err := CompressImage(outFilePath, false, 0)
 		if err != nil {
 			logger.Error("压缩数据失败 %v", err)
 			continue
@@ -354,7 +358,7 @@ func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string
 	}
 	transaction.Commit()
 	selector := make(map[string]interface{})
-	selector["select"] = []string{"id,image_id"}
+	selector["select"] = []string{"id,image_id,project_id"}
 
 	defer func() {
 		err = QueryEntityByFilter(&selector, &info)
@@ -380,6 +384,9 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 			continue
 		}
 		if strings.Contains(fileName, "_compressed") {
+			continue
+		}
+		if strings.Contains(fileName, "_compress") {
 			continue
 		}
 		if strings.Contains(fileName, "concat") {
@@ -418,7 +425,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 
 		//获取相同imageID的standard_infoID
 		for _, k := range standardInfos {
-			if k.ImageID == imagId {
+			if k.ImageID == imagId && k.ProjectID == group.ProjectID {
 				standard_infoId = k.ID
 			}
 		}
@@ -451,7 +458,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 		}
 
 		//查找groupID，处理点位，生成standard_item
-		for dlabel, dshapes := range DBJshapes {
+		for Llabel, Lshapes := range LJshapes {
 			var RoiArry []float64
 			area := "1"
 			component := "1"
@@ -460,7 +467,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 			camareIndex += 1
 			standardItem := Item{
 				ProjectID:       group.ProjectID,
-				ScanType:        "360",
+				ScanType:        "accurate",
 				PointID:         standard_infoId,
 				InfoID:          0,
 				Enable:          1,
@@ -468,7 +475,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 				StandardGroupID: String(standardGroup.ID),
 			}
 			standardItem.Roi = nil
-			standardItem.RoiType = dshapes.ShapeType
+			standardItem.RoiType = Lshapes.ShapeType
 			standardItem.RoiCode = imagId + "-" + String(camareIndex)
 			standardItem.RoiNumber = camareIndex
 			standardItem.RoiSource = 1
@@ -478,24 +485,22 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 			standardItem.DetType = ""
 			standardItem.ErrorTypes = ""
 
-			RoiArry = handelPoint(dshapes.Points)
+			RoiArry = handelPoint(Lshapes.Points)
 			standardItem.Roi = RoiArry
 
-			//判断大部件小部件零件
-			area = dlabel[4:]
+			//判断零件小部件大部件
+			det_type = Llabel
 			for xlable, xshapes := range XBJshapes {
+				//小部件包含零件
 				if contain(RoiArry, xshapes.Points) {
 					component = xlable[4:]
 					RoiXArry := handelPoint(xshapes.Points)
-					RoiArry = RoiXArry
-					for Llable, Lshapes := range LJshapes {
-						if contain(RoiXArry, Lshapes.Points) {
-							det_type = Llable
-							RoiArry = handelPoint(Lshapes.Points)
+					for dlable, dshapes := range DBJshapes {
+						//大部件包含小部件
+						if contain(RoiXArry, dshapes.Points) {
+							area = dlable[4:]
 						}
-
 					}
-
 				}
 			}
 			standardItem.Roi = RoiArry
@@ -529,14 +534,277 @@ func handelPoint(arr [][]float64) []float64 {
 	return res
 }
 
-// 判断大部件是否包含小部件(x:大部件；y：小部件)
-func contain(big []float64, small [][]float64) bool {
-	//判断x轴
-	if big[0] < small[0][0] && big[2] > small[1][0] {
-		//y轴
-		if big[1] < small[0][1] && big[3] > small[1][1] {
+// 判断b是否包含a(a小 b大)
+func contain(a []float64, b [][]float64) bool {
+	if b[0][0] <= a[0] && b[1][0] >= a[2] {
+		if b[0][1] <= a[1] && b[1][1] >= a[3] {
 			return true
 		}
 	}
 	return false
+}
+
+func GetJsonItesm(c *gin.Context) {
+	var err error
+	var files []string
+	var standardInfos []StandardInfo
+	var filesFiltered []string
+	var Items []Item
+	index := 0
+	cameraStr := ""
+	selector := make(map[string]interface{})
+
+	//读取输入路径
+	Filepath := c.Query("filepath")
+	//判断路径是否正确
+	err = GetFiles(Filepath, true, &files)
+	if err != nil {
+		SendParameterResponse(c, "读取路径文件失败", err)
+		return
+	}
+
+	selector["select"] = []string{"id,image_id,project_id"}
+	err = QueryEntityByFilter(&selector, &standardInfos)
+	if err != nil {
+		SendServerErrorResponse(c, "查找group_id失败", err)
+		return
+	}
+	for _, filePath := range files {
+		fileName := filepath.Base(filePath)
+		if strings.HasPrefix(fileName, ".") || !strings.HasSuffix(fileName, ".json") {
+			continue
+		}
+		if strings.Contains(fileName, "_compressed") {
+			continue
+		}
+		if strings.Contains(fileName, "_compress") {
+			continue
+		}
+		if strings.Contains(fileName, "concat") {
+			continue
+		}
+		filesFiltered = append(filesFiltered, filePath)
+	}
+	if len(filesFiltered) == 0 {
+		SendParameterResponse(c, "目录为空", err)
+		return
+	}
+
+	var standardGroup StandardGroup
+	selector = make(map[string]interface{})
+	selector["project_id"] = uint(6475)
+	err = QueryEntityByFilter(&selector, &standardGroup)
+	if err != nil {
+		SendServerErrorResponse(c, "查找project_id失败", err)
+		return
+	}
+	for _, v := range filesFiltered {
+		var data LabelMeJson
+		var standard_infoId uint
+		index += 1
+		camareIndex := 0
+		camera := path.Base(path.Dir(v))
+		if cameraStr != camera {
+			index = 1
+		}
+		cameraStr = camera
+		imagId := camera + "-" + strings.Split(path.Base(v), ".")[0]
+
+		var DBJshapes, XBJshapes, LJshapes, CXshapes, CZshapes, ZXJshapes []Shape
+
+		//获取相同imageID的standard_infoID
+		for _, k := range standardInfos {
+			if k.ImageID == imagId && k.ProjectID == uint(6475) {
+				standard_infoId = k.ID
+			}
+		}
+
+		fileData, err := ioutil.ReadFile(v)
+		if err != nil {
+			err = errors.New("读取json文件失败")
+			return
+		}
+		err = json.Unmarshal(fileData, &data)
+		if err != nil {
+			err = errors.New("解码json文件失败")
+			return
+		}
+
+		for _, k := range data.Shapes {
+			//提取大部件小部件零件、车厢车轴转向架
+			if strings.Contains(k.Label, "-") && !strings.HasSuffix(k.Label, "-centre") {
+				continue
+			}
+			//大部件
+			if strings.Contains(k.Label, "#dbj") {
+				DBJshapes = append(DBJshapes, k)
+			}
+			//小部件
+			if strings.Contains(k.Label, "#xbj") {
+				XBJshapes = append(XBJshapes, k)
+			}
+			//车厢
+			if strings.Contains(k.Label, "#cx") {
+				CXshapes = append(CXshapes, k)
+			}
+			//车轴
+			if strings.Contains(k.Label, "#cz") {
+				CZshapes = append(CZshapes, k)
+			}
+			//转向架
+			if strings.Contains(k.Label, "#zxj") {
+				ZXJshapes = append(ZXJshapes, k)
+			}
+			//零件
+			if !strings.Contains(k.Label, "#") && !strings.Contains(k.Label, "-") || strings.HasSuffix(k.Label, "-centre") {
+				LJshapes = append(LJshapes, k)
+			}
+		}
+		//查找groupID，处理点位，生成standard_item
+		for _, Lshapes := range LJshapes {
+			var RoiArry []float64
+			area := "1"
+			component := "1"
+			det_type := "1"
+			zxj := "0"
+			cz := "0"
+			cx := "0"
+			//初始化
+			camareIndex += 1
+			standardItem := Item{
+				ProjectID:       uint(6475),
+				ScanType:        "accurate",
+				PointID:         standard_infoId,
+				InfoID:          0,
+				Enable:          1,
+				Comment:         "",
+				StandardGroupID: "2015",
+			}
+			standardItem.Roi = nil
+			standardItem.RoiType = Lshapes.ShapeType
+			standardItem.RoiCode = imagId + "-" + String(camareIndex)
+			standardItem.RoiNumber = camareIndex
+			standardItem.RoiSource = 1
+			standardItem.Name = ""
+			standardItem.Area = ""
+			standardItem.Component = ""
+			standardItem.DetType = ""
+			standardItem.ErrorTypes = ""
+
+			RoiArry = handelPoint(Lshapes.Points)
+			standardItem.Roi = RoiArry
+
+			//判断零件小部件大部件
+			det_type = strings.Split(Lshapes.Label, "-")[0]
+			for _, xshapes := range XBJshapes {
+				//小部件包含零件
+				if contain(RoiArry, xshapes.Points) {
+					component = xshapes.Label[4:]
+				}
+			}
+			for _, dshapes := range DBJshapes {
+				//大部件包含零件
+				if contain(RoiArry, dshapes.Points) {
+					area = dshapes.Label[4:]
+				}
+			}
+			for _, zxjshapes := range ZXJshapes {
+				if contain(RoiArry, zxjshapes.Points) {
+					zxj = zxjshapes.Label[4:]
+				}
+			}
+			for _, czshapes := range CZshapes {
+				if contain(RoiArry, czshapes.Points) {
+					cz = czshapes.Label[3:]
+				}
+			}
+			for _, cxshapes := range CXshapes {
+				if contain(RoiArry, cxshapes.Points) {
+					cx = cxshapes.Label[3:]
+				}
+			}
+
+			standardItem.Roi = RoiArry
+			standardItem.Name = area + "-" + component + "-" + det_type
+			standardItem.Area = area
+			standardItem.Component = component
+			standardItem.DetType = det_type
+			standardItem.Position = cx + "-" + cz + "-" + zxj
+			Items = append(Items, standardItem)
+		}
+
+	}
+	transaction := DB.Begin()
+	err = CreateEntities(transaction, &Items)
+	if err != nil {
+		transaction.Rollback()
+		SendServerErrorResponse(c, "录入失败", err)
+		return
+	}
+	transaction.Commit()
+	SendNormalResponse(c, "录入成功")
+	return
+}
+
+// InsertCompress 传入指定路径生成压缩图
+func InsertCompress(c *gin.Context) {
+	var wg sync.WaitGroup
+	var err error
+	var files []string
+	var filesFiltered []string
+	Filepath := c.Query("filepath")
+	//outPath := "files/source_data/宁波五号线"
+	outPath := Filepath
+	if Filepath == "" {
+		SendParameterResponse(c, "传入路径为空", nil)
+		return
+	}
+
+	//校验路径下文件是否正确
+	err = GetFiles(Filepath, true, &files)
+	if err != nil {
+		SendServerErrorResponse(c, "读取路径文件失败", err)
+		return
+	}
+	//生成该路径下压缩图
+	for _, filePath := range files {
+		fileName := filepath.Base(filePath)
+		if strings.HasPrefix(fileName, ".") || !strings.HasSuffix(fileName, ".jpg") {
+			continue
+		}
+		if strings.Contains(fileName, "_compressed") {
+			continue
+		}
+		if strings.Contains(fileName, "_compress") {
+			continue
+		}
+		if strings.Contains(fileName, "concat") {
+			continue
+		}
+		if strings.Contains(fileName, "concat") {
+			continue
+		}
+		if strings.Contains(fileName, "_XRGRAY") {
+			continue
+		}
+		filesFiltered = append(filesFiltered, filePath)
+	}
+	if len(filesFiltered) == 0 {
+		SendParameterResponse(c, "目录为空请检查", nil)
+		return
+	}
+	for _, v := range filesFiltered {
+		outfilePath := fmt.Sprintf("/%s/%s", outPath, path.Base(v))
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err = CompressImage(outfilePath, false, 0)
+			if err != nil {
+				fmt.Println("压缩数据失败", err)
+				return
+			}
+		}()
+		wg.Wait()
+	}
+	SendNormalResponse(c, "压缩成功")
 }

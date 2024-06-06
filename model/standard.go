@@ -63,6 +63,7 @@ type Item struct {
 	Comment         string `gorm:"column:comment" json:"comment"`
 	StandardGroupID string `gorm:"column:standard_group_id" json:"standard_group_id"`
 	ErrorTypesOld   string `gorm:"-" json:"-"`
+	Position        string `gorm:"column:position" json:"position"`
 	ItemModel
 	// BoltMark int8 `gorm:"column:bolt_mark;default:0;force" json:"bolt_mark"`
 	//ScanType   		string 			`gorm:"column:scan_type" json:"scan_type"`
