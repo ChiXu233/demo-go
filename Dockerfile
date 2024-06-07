@@ -19,4 +19,4 @@ COPY ./main-dev /app
 
 EXPOSE 9093
 
-CMD["./main-dev"]
+CMD["./demo_go"]
