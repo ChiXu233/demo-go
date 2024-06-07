@@ -11,6 +11,31 @@ db:
   password:     123456
   port:         5432
 
+### 正式服务器
+#db:
+#  name:         dsm
+#  host:         192.168.2.68
+#  user:         root
+#  password:     123456
+#  port:         5432
+
+### 本地
+#db:
+#  name:         glint_demo
+#  host:         localhost
+#  user:         root
+#  password:     123456
+#  port:         5432
+
+#db:
+#  name:         dsm
+#  host:         192.168.2.67
+#  user:         root
+#  password:     123456
+#  port:         5432
+#  maxIdleConns: 10
+#  maxOpenConns: 1024
+
 redis:
   host:         127.0.0.1
   port:         6379
@@ -27,3 +52,15 @@ redis:
   ad_test_task_progress_key: ad_test_task_progress
   ad_pre_process_status_key: ad_pre_process_status
   standard_gen_progress_key: standard_gen_progress
+
+algorithm:
+    ip: 127.0.0.1
+    port: 8012
+    one: false
+    ad_train_docker_api: tcp://192.168.2.109:2375
+    ad_train_docker_image: dockerhub.deepglint.com/cybertron/patchcore:0.0.0.2_einops
+    ad_train_gpu: 1
+    ad_train_debug: false
+    ad_train_image_limit: 150
+    ad_test_image_limit: 100
+    ad_test_api: http://192.168.2.109:11223
