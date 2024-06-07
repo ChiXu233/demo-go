@@ -257,6 +257,7 @@ func ImportLocalStandardController(c *gin.Context) {
 }
 
 func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string) (info []StandardInfo, err error) {
+	var wg sync.WaitGroup
 	var filesFiltered []string
 	var standardInfoList []StandardInfo
 	cameraStr := ""
@@ -289,65 +290,70 @@ func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string
 	}
 
 	for _, v := range filesFiltered {
-		index += 1
-		camera := path.Base(path.Dir(v))
-		if cameraStr != camera {
-			//切换相机index也发生改变
-			index = 1
-		}
-		cameraStr = camera
-		outFilePath := fmt.Sprintf("%s/%s/%s", flactpath, camera, path.Base(v))
-		standardInfo := StandardInfo{
-			ProjectID: group.ProjectID,
-			InfoModel: InfoModel{
-				ImageID:          camera + "-" + strings.Split(path.Base(v), ".")[0],
-				ImageURL:         fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, outFilePath),
-				ImageURLCompress: "",
-			},
-			InfoModelExtend: InfoModelExtend{
-				DepthURL:        "",
-				DepthRenderURL:  "",
-				PointCloud:      "",
-				RGBURL:          "",
-				Texture16bitURL: "",
-				DebugTextureURL: "",
-				SourceDataPath:  "",
-				Comment:         "",
-			},
-			ParseID:             0,
-			RuleID:              0,
-			StandardName:        camera + "-" + strings.Split(path.Base(v), ".")[0],
-			GroupNumber:         0,
-			CheckingStatus:      0,
-			RunningState:        0,
-			AnnotateStatus:      "",
-			ReferenceStatus:     "",
-			DepthRenderURL:      "",
-			PointCloudURL:       "",
-			TrainType:           "",
-			Camera:              camera,
-			ScanId:              String(index),
-			IsAside:             false,
-			DisplayFor3D:        false,
-			AnnotatedFor3D:      false,
-			CommentFor3D:        "",
-			ConfigStatusForBolt: "",
-			ImageQualityForBolt: false,
-			DisplayForBolt:      false,
-			LatestBrightness:    0,
-			RelatedTrainNumber:  "",
-			ImageChangeStatus:   false,
-			ScanType:            "精扫",
-		}
-		//灰度图压缩图
-		compressPath, err := CompressImage(outFilePath, false, 0)
-		if err != nil {
-			logger.Error("压缩数据失败 %v", err)
-			continue
-		}
-		standardInfo.ImageURLCompress = fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, compressPath)
-		standardInfoList = append(standardInfoList, standardInfo)
+		wg.Add(1)
+		go func(v string) {
+			defer wg.Done()
+			index += 1
+			camera := path.Base(path.Dir(v))
+			if cameraStr != camera {
+				//切换相机index也发生改变
+				index = 1
+			}
+			cameraStr = camera
+			outFilePath := fmt.Sprintf("%s/%s/%s", flactpath, camera, path.Base(v))
+			standardInfo := StandardInfo{
+				ProjectID: group.ProjectID,
+				InfoModel: InfoModel{
+					ImageID:          camera + "-" + strings.Split(path.Base(v), ".")[0],
+					ImageURL:         fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, outFilePath),
+					ImageURLCompress: "",
+				},
+				InfoModelExtend: InfoModelExtend{
+					DepthURL:        "",
+					DepthRenderURL:  "",
+					PointCloud:      "",
+					RGBURL:          "",
+					Texture16bitURL: "",
+					DebugTextureURL: "",
+					SourceDataPath:  "",
+					Comment:         "",
+				},
+				ParseID:             0,
+				RuleID:              0,
+				StandardName:        camera + "-" + strings.Split(path.Base(v), ".")[0],
+				GroupNumber:         0,
+				CheckingStatus:      0,
+				RunningState:        0,
+				AnnotateStatus:      "",
+				ReferenceStatus:     "",
+				DepthRenderURL:      "",
+				PointCloudURL:       "",
+				TrainType:           "",
+				Camera:              camera,
+				ScanId:              String(index),
+				IsAside:             false,
+				DisplayFor3D:        false,
+				AnnotatedFor3D:      false,
+				CommentFor3D:        "",
+				ConfigStatusForBolt: "",
+				ImageQualityForBolt: false,
+				DisplayForBolt:      false,
+				LatestBrightness:    0,
+				RelatedTrainNumber:  "",
+				ImageChangeStatus:   false,
+				ScanType:            "精扫",
+			}
+			//灰度图压缩图
+			compressPath, err := CompressImage(outFilePath, false, 0)
+			if err != nil {
+				logger.Error("压缩数据失败 %v", err)
+				return
+			}
+			standardInfo.ImageURLCompress = fmt.Sprintf("http://%s:%d/%s", config.Conf.APP.IP, config.Conf.APP.Port, compressPath)
+			standardInfoList = append(standardInfoList, standardInfo)
+		}(v)
 	}
+	wg.Wait()
 	transaction := DB.Begin()
 	if len(standardInfoList) > 0 {
 		err = CreateEntities(transaction, &standardInfoList)
@@ -377,7 +383,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 	index := 0
 	cameraStr := ""
 	selector := make(map[string]interface{})
-
+	var wg sync.WaitGroup
 	for _, filePath := range *files {
 		fileName := filepath.Base(filePath)
 		if strings.HasPrefix(fileName, ".") || !strings.HasSuffix(fileName, ".json") {
@@ -408,138 +414,142 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 		return err
 	}
 	for _, v := range filesFiltered {
-		var data LabelMeJson
-		var standard_infoId uint
-		index += 1
-		camareIndex := 0
-		camera := path.Base(path.Dir(v))
-		if cameraStr != camera {
-			index = 1
-		}
-		cameraStr = camera
-		imagId := camera + "-" + strings.Split(path.Base(v), ".")[0]
+		wg.Add(1)
+		go func(v string) {
+			defer wg.Done()
+			var data LabelMeJson
+			var standard_infoId uint
+			index += 1
+			camareIndex := 0
+			camera := path.Base(path.Dir(v))
+			if cameraStr != camera {
+				index = 1
+			}
+			cameraStr = camera
+			imagId := camera + "-" + strings.Split(path.Base(v), ".")[0]
 
-		var DBJshapes, XBJshapes, LJshapes, CXshapes, CZshapes, ZXJshapes []Shape
+			var DBJshapes, XBJshapes, LJshapes, CXshapes, CZshapes, ZXJshapes []Shape
 
-		//获取相同imageID的standard_infoID
-		for _, k := range standardInfos {
-			if k.ImageID == imagId && k.ProjectID == uint(6475) {
-				standard_infoId = k.ID
-			}
-		}
-
-		fileData, err := ioutil.ReadFile(v)
-		if err != nil {
-			err = errors.New("读取json文件失败" + err.Error())
-			return err
-		}
-		err = json.Unmarshal(fileData, &data)
-		if err != nil {
-			err = errors.New("解码json文件失败" + err.Error())
-			return err
-		}
-
-		for _, k := range data.Shapes {
-			//提取大部件小部件零件、车厢车轴转向架
-			if strings.Contains(k.Label, "-") && !strings.HasSuffix(k.Label, "-centre") {
-				continue
-			}
-			//大部件
-			if strings.Contains(k.Label, "#dbj") {
-				DBJshapes = append(DBJshapes, k)
-			}
-			//小部件
-			if strings.Contains(k.Label, "#xbj") {
-				XBJshapes = append(XBJshapes, k)
-			}
-			//车厢
-			if strings.Contains(k.Label, "#cx") {
-				CXshapes = append(CXshapes, k)
-			}
-			//车轴
-			if strings.Contains(k.Label, "#cz") {
-				CZshapes = append(CZshapes, k)
-			}
-			//转向架
-			if strings.Contains(k.Label, "#zxj") {
-				ZXJshapes = append(ZXJshapes, k)
-			}
-			//零件
-			if !strings.Contains(k.Label, "#") && !strings.Contains(k.Label, "-") || strings.HasSuffix(k.Label, "-centre") {
-				LJshapes = append(LJshapes, k)
-			}
-		}
-		//查找groupID，处理点位，生成standard_item
-		for _, Lshapes := range LJshapes {
-			var RoiArry []float64
-			area := "1"
-			component := "1"
-			det_type := "1"
-			zxj := "0"
-			cz := "0"
-			cx := "0"
-			//初始化
-			camareIndex += 1
-			standardItem := Item{
-				ProjectID:       group.ProjectID,
-				ScanType:        "accurate",
-				PointID:         standard_infoId,
-				InfoID:          0,
-				Enable:          1,
-				Comment:         "",
-				StandardGroupID: String(standardGroup.ID),
-			}
-			standardItem.Roi = nil
-			standardItem.RoiType = Lshapes.ShapeType
-			standardItem.RoiCode = imagId + "-" + String(camareIndex)
-			standardItem.RoiNumber = camareIndex
-			standardItem.RoiSource = 1
-			standardItem.Name = ""
-			standardItem.Area = ""
-			standardItem.Component = ""
-			standardItem.DetType = ""
-			standardItem.ErrorTypes = ""
-
-			RoiArry = handelPoint(Lshapes.Points)
-			standardItem.Roi = RoiArry
-
-			//判断零件小部件大部件
-			det_type = strings.Split(Lshapes.Label, "-")[0]
-			for _, xshapes := range XBJshapes {
-				//小部件包含零件
-				if contain(RoiArry, handelPoint(xshapes.Points)) {
-					component = xshapes.Label[4:]
+			//获取相同imageID的standard_infoID
+			for _, k := range standardInfos {
+				if k.ImageID == imagId && k.ProjectID == uint(6475) {
+					standard_infoId = k.ID
 				}
 			}
-			for _, dshapes := range DBJshapes {
-				//大部件包含零件
-				if contain(RoiArry, handelPoint(dshapes.Points)) {
-					area = dshapes.Label[4:]
+
+			fileData, err := ioutil.ReadFile(v)
+			if err != nil {
+				err = errors.New("读取json文件失败" + err.Error())
+				return
+			}
+			err = json.Unmarshal(fileData, &data)
+			if err != nil {
+				err = errors.New("解码json文件失败" + err.Error())
+				return
+			}
+
+			for _, k := range data.Shapes {
+				//提取大部件小部件零件、车厢车轴转向架
+				if strings.Contains(k.Label, "-") && !strings.HasSuffix(k.Label, "-centre") {
+					continue
+				}
+				//大部件
+				if strings.Contains(k.Label, "#dbj") {
+					DBJshapes = append(DBJshapes, k)
+				}
+				//小部件
+				if strings.Contains(k.Label, "#xbj") {
+					XBJshapes = append(XBJshapes, k)
+				}
+				//车厢
+				if strings.Contains(k.Label, "#cx") {
+					CXshapes = append(CXshapes, k)
+				}
+				//车轴
+				if strings.Contains(k.Label, "#cz") {
+					CZshapes = append(CZshapes, k)
+				}
+				//转向架
+				if strings.Contains(k.Label, "#zxj") {
+					ZXJshapes = append(ZXJshapes, k)
+				}
+				//零件
+				if !strings.Contains(k.Label, "#") && !strings.Contains(k.Label, "-") || strings.HasSuffix(k.Label, "-centre") {
+					LJshapes = append(LJshapes, k)
 				}
 			}
-			for _, zxjshapes := range ZXJshapes {
-				if contain(RoiArry, handelPoint(zxjshapes.Points)) {
-					zxj = zxjshapes.Label[4:]
+			//查找groupID，处理点位，生成standard_item
+			for _, Lshapes := range LJshapes {
+				var RoiArry []float64
+				area := "1"
+				component := "1"
+				det_type := "1"
+				zxj := "0"
+				cz := "0"
+				cx := "0"
+				//初始化
+				camareIndex += 1
+				standardItem := Item{
+					ProjectID:       group.ProjectID,
+					ScanType:        "accurate",
+					PointID:         standard_infoId,
+					InfoID:          0,
+					Enable:          1,
+					Comment:         "",
+					StandardGroupID: String(standardGroup.ID),
 				}
-			}
-			for _, czshapes := range CZshapes {
-				if contain(RoiArry, handelPoint(czshapes.Points)) {
-					cz = czshapes.Label[3:]
+				standardItem.Roi = nil
+				standardItem.RoiType = Lshapes.ShapeType
+				standardItem.RoiCode = imagId + "-" + String(camareIndex)
+				standardItem.RoiNumber = camareIndex
+				standardItem.RoiSource = 1
+				standardItem.Name = ""
+				standardItem.Area = ""
+				standardItem.Component = ""
+				standardItem.DetType = ""
+				standardItem.ErrorTypes = ""
+
+				RoiArry = handelPoint(Lshapes.Points)
+				standardItem.Roi = RoiArry
+
+				//判断零件小部件大部件
+				det_type = strings.Split(Lshapes.Label, "-")[0]
+				for _, xshapes := range XBJshapes {
+					//小部件包含零件
+					if contain(RoiArry, handelPoint(xshapes.Points)) {
+						component = xshapes.Label[4:]
+					}
 				}
-			}
-			for _, cxshapes := range CXshapes {
-				if contain(RoiArry, handelPoint(cxshapes.Points)) {
-					cx = cxshapes.Label[3:]
+				for _, dshapes := range DBJshapes {
+					//大部件包含零件
+					if contain(RoiArry, handelPoint(dshapes.Points)) {
+						area = dshapes.Label[4:]
+					}
 				}
+				for _, zxjshapes := range ZXJshapes {
+					if contain(RoiArry, handelPoint(zxjshapes.Points)) {
+						zxj = zxjshapes.Label[4:]
+					}
+				}
+				for _, czshapes := range CZshapes {
+					if contain(RoiArry, handelPoint(czshapes.Points)) {
+						cz = czshapes.Label[3:]
+					}
+				}
+				for _, cxshapes := range CXshapes {
+					if contain(RoiArry, handelPoint(cxshapes.Points)) {
+						cx = cxshapes.Label[3:]
+					}
+				}
+				standardItem.Roi = RoiArry
+				standardItem.Name = area + "-" + component + "-" + det_type
+				standardItem.Area = area
+				standardItem.Component = component
+				standardItem.DetType = det_type
+				standardItem.Position = cx + "-" + cz + "-" + zxj
+				Items = append(Items, standardItem)
 			}
-			standardItem.Roi = RoiArry
-			standardItem.Name = area + "-" + component + "-" + det_type
-			standardItem.Area = area
-			standardItem.Component = component
-			standardItem.DetType = det_type
-			standardItem.Position = cx + "-" + cz + "-" + zxj
-			Items = append(Items, standardItem)
-		}
+		}(v)
 	}
 	err = CreateEntities(transaction, &Items)
 	if err != nil {
@@ -788,6 +798,10 @@ func GetJsonItesm(c *gin.Context) {
 
 // InsertCompress 传入指定路径生成压缩图
 func InsertCompress(c *gin.Context) {
+	t0 := time.Now()
+	defer func() {
+		fmt.Printf("GOROUTINE USE Time %d ms \n", time.Since(t0).Milliseconds())
+	}()
 	var wg sync.WaitGroup
 	var err error
 	var files []string
@@ -844,7 +858,7 @@ func InsertCompress(c *gin.Context) {
 				return
 			}
 		}()
-		wg.Wait()
 	}
+	wg.Wait()
 	SendNormalResponse(c, "压缩成功")
 }
