@@ -5,8 +5,8 @@ app:
   mode: debug
 
 db:
-  name:         glint_demo
-  host:         localhost
+  name:         test
+  host:         120.46.48.255
   user:         root
   password:     123456
   port:         5432
