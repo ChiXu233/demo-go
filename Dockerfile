@@ -1,5 +1,4 @@
-FROM golang:1.19-alpine3.15 As build
-
+FROM golang:1.19
 # 设置环境变量
 ENV GO111MODULE=on \
 GOPROXY=https://goproxy.cn,direct \
