@@ -1,20 +1,29 @@
-FROM golang:1.19
-# 设置环境变量
-ENV GO111MODULE=on \
-GOPROXY=https://goproxy.cn,direct \
-CGO_ENABLED=0 \
-GOOS=linux \
-GOARCH=amd64
+FROM golang:alpine AS builder
 
-#移动到工作目录
-WORKDIR /workspace/demo-go
+LABEL stage=gobuilder
 
-COPY . /demo-go
+ENV CGO_ENABLED 0
+ENV GOPROXY https://goproxy.cn,direct
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
 
-ADD config.yaml .
-ADD log.json .
+RUN apk update --no-cache && apk add --no-cache tzdata
+
+WORKDIR /build
+
+ADD go.mod .
+ADD go.sum .
+RUN go mod download
+COPY . .
+RUN go build -ldflags="-s -w" -o /app/main main.go
 
 
-EXPOSE 9093
+FROM scratch
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /usr/share/zoneinfo/Asia/Shanghai /usr/share/zoneinfo/Asia/Shanghai
+ENV TZ Asia/Shanghai
+
+WORKDIR /app
+COPY --from=builder /app/main /app/main
 
 CMD ["./main"]
