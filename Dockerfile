@@ -1,4 +1,4 @@
-FROM golang:1.19
+FROM golang:1.19 AS builder
 USER root
 # 设置环境变量
 ENV GO111MODULE=on \
