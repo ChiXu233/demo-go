@@ -1,4 +1,4 @@
-FROM golang:1.19 AS builder
+FROM golang:1.17-alpine AS builder
 USER root
 # 设置环境变量
 ENV GO111MODULE=on \
