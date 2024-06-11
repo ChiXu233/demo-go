@@ -15,7 +15,6 @@ ADD config.yaml .
 ADD log.json .
 
 COPY .env /app
-COPY ./main-dev /app
 
 EXPOSE 9093
 
