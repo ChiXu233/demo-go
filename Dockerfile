@@ -1,5 +1,5 @@
-FROM ubuntu:22.04
-USER root
+FROM golang:1.19-alpine As build
+
 # 设置环境变量
 ENV GO111MODULE=on \
 GOPROXY=https://goproxy.cn,direct \
@@ -8,13 +8,13 @@ GOOS=linux \
 GOARCH=amd64
 
 #移动到工作目录
-WORKDIR /workspace/demo_go
+WORKDIR /workspace/demo-go
 
+COPY . /demo-go
 
 ADD config.yaml .
 ADD log.json .
 
-COPY .env /app
 
 EXPOSE 9093
 
