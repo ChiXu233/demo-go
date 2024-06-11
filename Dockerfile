@@ -1,4 +1,4 @@
-FROM golang:1.19-alpine As build
+FROM golang:1.19-alpine3.15 As build
 
 # 设置环境变量
 ENV GO111MODULE=on \
