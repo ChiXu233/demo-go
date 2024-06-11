@@ -1,4 +1,4 @@
-FROM golang:1.17-alpine AS builder
+FROM ubuntu:22.04
 USER root
 # 设置环境变量
 ENV GO111MODULE=on \

@@ -24,12 +24,15 @@ func main() {
 	}
 	err = model.DB.AutoMigrate(
 		&model.User{},
+		&model.StandardGroup{},
 		&model.Role{},
 		&model.UserRole{},
 		&model.Token{},
 		&model.OperationLog{},
 		&model.Dict{},
 		&model.Item{},
+		&model.Project{},
+		&model.StandardInfo{},
 	)
 	if err != nil {
 		panic(err)

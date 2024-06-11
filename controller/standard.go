@@ -257,6 +257,10 @@ func ImportLocalStandardController(c *gin.Context) {
 }
 
 func GetPicFilesAndInsert(flactpath string, group StandardGroup, files *[]string) (info []StandardInfo, err error) {
+	t0 := time.Now()
+	defer func() {
+		fmt.Printf("USE Time %d ms \n", time.Since(t0).Milliseconds())
+	}()
 	var wg sync.WaitGroup
 	var filesFiltered []string
 	var standardInfoList []StandardInfo
@@ -551,6 +555,7 @@ func GetJsonFilesAndInsert(group StandardGroup, files *[]string, transaction *go
 			}
 		}(v)
 	}
+	wg.Wait()
 	err = CreateEntities(transaction, &Items)
 	if err != nil {
 		err = errors.New("新增失败" + err.Error())
