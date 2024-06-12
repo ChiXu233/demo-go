@@ -70,6 +70,9 @@ func main() {
 		v1.GET("/dict_list", controller.QueryDictListController)  //查看字典表列表
 		v1.GET("/dict/:dict_id", controller.QueryDictController)  //查看字典表详情
 
+		//解析方案
+		v1.POST("/parse", controller.CreateOrUpdateParseController) //创建或更新解析方案
+
 		//预处理
 		v1.GET("/preprocess", controller.QueryPreprocessListController)       //查询预处理列表
 		v1.POST("/preprocess", controller.CreateOrUpdatePreprocessController) //新增或更新预处理规则
