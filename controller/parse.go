@@ -485,3 +485,87 @@ func GetOrCreateFileDirDecode(transaction *gorm.DB, parse Parse, mode string) (P
 	}
 
 }
+
+// QueryParseListController 查看解析方案
+func QueryParseListController(c *gin.Context) {
+	var parseList []Parse
+	selector := make(map[string]interface{})
+	selector["order"] = "id desc"
+	parseName := c.Query("parse_name_search")
+	if parseName != "" {
+		selector["parse_name"] = parseName
+	}
+	projectID := UInt(c.Query("project_id"))
+	if projectID != 0 {
+		selector["project_id"] = projectID
+	}
+	err := QueryList(&selector, &parseList)
+	if err != nil {
+		SendServerErrorResponse(c, "查找项目列表失败", err)
+		return
+	}
+	var simpleParseList []SimpleParse
+	for _, parse := range parseList {
+		var simpleParse SimpleParse
+		simpleParse.ID = parse.ID
+		simpleParse.ParseName = parse.ParseName
+		simpleParseList = append(simpleParseList, simpleParse)
+	}
+	res := make(map[string]interface{})
+	res["parses"] = simpleParseList
+	SendNormalResponse(c, res)
+	return
+}
+
+// QueryParseDetailController 查看解析方案详情
+func QueryParseDetailController(c *gin.Context) {
+	var parseDetails ParseDetails
+	var parse Parse
+	parseID := c.Param("parse_id")
+	parseIDInt, err := strconv.Atoi(parseID)
+	if err != nil {
+		SendServerErrorResponse(c, "转化id失败", err)
+		return
+	}
+	//查询解析方案
+	err = QueryEntity(uint(parseIDInt), &parse)
+	if err != nil {
+		SendServerErrorResponse(c, "查找解析方案失败", err)
+		return
+	}
+	//查询图片ID解析方案
+	var parseDecodeList []ParseDecode
+	selector := make(map[string]interface{})
+	selector["parse_id"] = parse.ID
+	selector["file_source"] = 1
+	selector["order"] = "parse_code"
+	err = QueryList(&selector, &parseDecodeList)
+	if err != nil {
+		SendServerErrorResponse(c, "查找图片结构解析方案失败", err)
+		return
+	}
+	parseDetails.Parse = parse
+	for _, decode := range parseDecodeList {
+		parseDetails.ImageIDParseResult.SplitResult = append(parseDetails.ImageIDParseResult.SplitResult, decode.ImageField)
+		parseDetails.ImageIDParseResult.ParseCode = append(parseDetails.ImageIDParseResult.ParseCode, decode.ParseCode)
+		parseDetails.ImageIDParseResult.ParseName = append(parseDetails.ImageIDParseResult.ParseName, decode.ParseName)
+	}
+	//查询文件夹解析方案
+	var parseDecodeList2 []ParseDecode
+	selector = make(map[string]interface{})
+	selector["parse_id"] = parse.ID
+	selector["filed_source"] = 2
+	selector["order"] = "parse_code"
+	err = QueryList(&selector, parseDecodeList2)
+	if err != nil {
+		SendServerErrorResponse(c, "目录结构解析方案查找失败", err)
+		return
+	}
+	for _, decode := range parseDecodeList2 {
+		parseDetails.FileDirParseResult.SplitResult = append(parseDetails.FileDirParseResult.SplitResult, decode.ImageField)
+		parseDetails.FileDirParseResult.ParseCode = append(parseDetails.FileDirParseResult.ParseCode, decode.ParseCode)
+		parseDetails.FileDirParseResult.ParseName = append(parseDetails.FileDirParseResult.ParseName, decode.ParseName)
+		parseDetails.FileDirParseResult.NeedEnter = append(parseDetails.FileDirParseResult.NeedEnter, decode.NeedEnter)
+	}
+	SendNormalResponse(c, parseDetails)
+}

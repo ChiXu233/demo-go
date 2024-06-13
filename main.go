@@ -3,10 +3,12 @@ package main
 import (
 	"demo-go/config"
 	"demo-go/controller"
+	"demo-go/middleware"
 	"demo-go/model"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/wonderivan/logger"
+	"time"
 )
 
 func main() {
@@ -50,6 +52,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+	r.Use(middleware.RateLimitMiddleware(1*time.Millisecond, 20))
 
 	//添加路由
 	v1 := r.Group("/api")
@@ -71,7 +74,9 @@ func main() {
 		v1.GET("/dict/:dict_id", controller.QueryDictController)  //查看字典表详情
 
 		//解析方案
-		v1.POST("/parse", controller.CreateOrUpdateParseController) //创建或更新解析方案
+		v1.POST("/parse", controller.CreateOrUpdateParseController)              //创建或更新解析方案
+		v1.GET("/parses", controller.QueryParseListController)                   //查看解析方案
+		v1.GET("/parse/:parse_id/detail", controller.QueryParseDetailController) //查看解析方案详情
 
 		//预处理
 		v1.GET("/preprocess", controller.QueryPreprocessListController)       //查询预处理列表
